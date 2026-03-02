@@ -1,0 +1,30 @@
+{
+  "_note": "은행 평균 주택담보대출 금리. ECOS 2024.12 기준 가중평균 3.99% + COFIX 추이 반영.",
+
+  "base_rates": {
+    "fixed_5y": 4.50,
+    "fixed_10y": 4.40,
+    "mixed_5y_then_variable": 4.20,
+    "variable": 3.95,
+    "_note": "변동금리는 신규취급 COFIX(2026.01: 3.38%) + 가산금리 기준. 고정금리는 은행채 5년물 기반."
+  },
+
+  "credit_adjustments": [
+    {"min_score": 900, "max_score": 1000, "adjustment_pct": -0.30},
+    {"min_score": 800, "max_score": 899, "adjustment_pct": -0.10},
+    {"min_score": 700, "max_score": 799, "adjustment_pct": 0.00},
+    {"min_score": 600, "max_score": 699, "adjustment_pct": 0.30},
+    {"min_score": 0, "max_score": 599, "adjustment_pct": 0.70}
+  ],
+
+  "default_rate_key": "variable",
+
+  "max_ltv_by_region": {
+    "seoul": 50,
+    "metropolitan": 50,
+    "non_metropolitan": 60
+  },
+
+  "_data_source": "한국은행 ECOS + 전국은행연합회 COFIX",
+  "_last_updated": "2026-03-01"
+}

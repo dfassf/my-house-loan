@@ -1,0 +1,48 @@
+{
+  "_note": "10.15 부동산 대책 기준 LTV/DSR 규제 (2025.10.20 시행, 2026.12.31까지 한시 지정)",
+  "_규제지역": "서울 25개 전 자치구 + 경기 12개 지역 (과천, 성남분당, 하남, 광명, 구리, 안양동안, 광교, 수원영통, 용인수지, 용인기흥, 고양덕양, 고양일산동)",
+
+  "regulated_zones": {
+    "_note": "규제지역 (서울 전역 + 수도권 일부) — 우리 앱에서는 seoul/metropolitan을 규제지역으로 처리",
+    "ltv": {
+      "homeless_general": 40,
+      "homeless_first_time": 70,
+      "homeowner": 0,
+      "_note_first_time": "생애최초 LTV 70%는 6개월 이내 전입 의무"
+    },
+    "absolute_caps": {
+      "_note": "주택 시가 구간별 주담대 절대 한도 (원)",
+      "under_15억": 600000000,
+      "15억_to_25억": 400000000,
+      "over_25억": 200000000
+    }
+  },
+
+  "non_regulated_zones": {
+    "_note": "비규제지역 (비수도권)",
+    "ltv": {
+      "general": 70,
+      "first_time": 80
+    }
+  },
+
+  "dsr_limits": {
+    "default_pct": 40,
+    "stress_rate_add_pct": 3.0,
+    "_note_stress": "규제지역 스트레스 DSR: 대출금리에 3.0%p 가산하여 상환능력 심사. 비규제지역은 1.5%p.",
+    "stress_rate_non_regulated_pct": 1.5
+  },
+
+  "policy_loan_overrides": {
+    "_note": "정책대출(디딤돌/보금자리론)은 자체 LTV/DSR 기준 적용. 은행 규제와 별도.",
+    "didimdol_max_ltv": 70,
+    "didimdol_max_ltv_first_time": 80,
+    "bogeumjari_max_ltv": 70,
+    "bogeumjari_max_ltv_first_time": 80,
+    "policy_dsr_exempt": true,
+    "_note_dsr_policy": "정책대출은 DSR 산정 시 일부 제외/완화 적용"
+  },
+
+  "_data_source": "금융위원회 10.15 부동산 대책 + 금감원",
+  "_last_updated": "2026-03-01"
+}
