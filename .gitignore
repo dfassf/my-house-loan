@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.venv/
+
+# Build
+dist/
+*.ait
+
+# Environment / Secrets
+.env
+cloudrun.env.yaml
+backend/.env
+backend/cloudrun.env.yaml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# uv
+uv.lock

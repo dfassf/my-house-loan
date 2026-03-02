@@ -1,0 +1,49 @@
+{
+  "product_id": "bogeumjari",
+  "product_name": "보금자리론",
+  "product_type": "policy",
+
+  "max_housing_price": 600000000,
+
+  "max_income": 70000000,
+  "max_income_newlywed": 85000000,
+  "max_income_1child": 80000000,
+  "max_income_2child": 90000000,
+  "max_income_3child": 100000000,
+
+  "max_net_assets": 511000000,
+  "requires_homeless": false,
+  "min_area_m2": 0,
+  "max_area_m2": 85,
+  "max_area_m2_urban": 100,
+
+  "max_loan_amount": 360000000,
+  "max_loan_amount_first_time": 420000000,
+  "max_loan_amount_multi_child": 400000000,
+  "max_ltv_pct": 70,
+  "max_ltv_pct_first_time": 80,
+
+  "income_rate_tiers": [
+    {"max_income": 70000000, "rate_10y": 4.05, "rate_15y": 4.15, "rate_20y": 4.25, "rate_30y": 4.35, "rate_40y": 4.40, "rate_50y": 4.45}
+  ],
+
+  "discount_conditions": [
+    {"name": "전자약정등기", "discount_pct": 0.1, "condition": "전자약정·전자등기 체결 시"},
+    {"name": "신혼가구", "discount_pct": 0.3, "condition": "혼인 7년 이내"},
+    {"name": "다자녀3", "discount_pct": 0.7, "condition": "3자녀 이상"},
+    {"name": "다자녀", "discount_pct": 0.5, "condition": "2자녀"},
+    {"name": "전세사기피해자", "discount_pct": 1.0, "condition": "전세사기피해자 (전세사기특별법)"}
+  ],
+  "max_total_discount": 1.0,
+
+  "available_terms_years": [10, 15, 20, 30, 40, 50],
+  "available_repayment_methods": [
+    "equal_principal_and_interest",
+    "equal_principal",
+    "graduated"
+  ],
+
+  "_note": "아낌e보금자리론 기준 (온라인 신청, 전자약정등기 적용). u-보금자리론은 +0.1%p.",
+  "_data_source": "한국주택금융공사(HF) 2026.03 기준",
+  "_last_updated": "2026-03-01"
+}

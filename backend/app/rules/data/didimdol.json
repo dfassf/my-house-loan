@@ -1,0 +1,70 @@
+{
+  "product_id": "didimdol",
+  "product_name": "디딤돌 대출",
+  "product_type": "policy",
+
+  "max_housing_price": 500000000,
+  "max_housing_price_newlywed": 600000000,
+  "max_housing_price_multi_child": 600000000,
+
+  "max_income": 60000000,
+  "max_income_first_time": 70000000,
+  "max_income_multi_child": 70000000,
+  "max_income_newlywed": 85000000,
+
+  "max_net_assets": 511000000,
+  "requires_homeless": true,
+  "min_area_m2": 0,
+  "max_area_m2": 85,
+  "max_area_m2_urban": 100,
+
+  "max_loan_amount": 200000000,
+  "max_loan_amount_first_time": 240000000,
+  "max_loan_amount_newlywed": 320000000,
+  "max_loan_amount_multi_child": 320000000,
+  "max_ltv_pct": 70,
+  "max_ltv_pct_first_time": 80,
+
+  "income_rate_tiers": [
+    {"max_income": 20000000, "rate_10y": 2.85, "rate_15y": 2.95, "rate_20y": 3.00, "rate_30y": 3.10},
+    {"max_income": 40000000, "rate_10y": 3.20, "rate_15y": 3.30, "rate_20y": 3.35, "rate_30y": 3.45},
+    {"max_income": 60000000, "rate_10y": 3.55, "rate_15y": 3.65, "rate_20y": 3.70, "rate_30y": 3.80},
+    {"max_income": 70000000, "rate_10y": 3.90, "rate_15y": 4.00, "rate_20y": 4.05, "rate_30y": 4.15},
+    {"max_income": 85000000, "rate_10y": 3.90, "rate_15y": 4.00, "rate_20y": 4.05, "rate_30y": 4.15}
+  ],
+
+  "newlywed_rate_tiers": [
+    {"max_income": 20000000, "rate_10y": 2.55, "rate_15y": 2.65, "rate_20y": 2.70, "rate_30y": 2.80},
+    {"max_income": 40000000, "rate_10y": 2.90, "rate_15y": 3.00, "rate_20y": 3.05, "rate_30y": 3.15},
+    {"max_income": 60000000, "rate_10y": 3.25, "rate_15y": 3.35, "rate_20y": 3.40, "rate_30y": 3.50},
+    {"max_income": 70000000, "rate_10y": 3.60, "rate_15y": 3.70, "rate_20y": 3.75, "rate_30y": 3.85},
+    {"max_income": 85000000, "rate_10y": 3.60, "rate_15y": 3.70, "rate_20y": 3.75, "rate_30y": 3.85}
+  ],
+
+  "min_rate_floor": 1.5,
+  "min_rate_floor_newlywed": 1.2,
+
+  "discount_conditions": [
+    {"name": "전자계약", "discount_pct": 0.1, "condition": "전자계약 체결 시"},
+    {"name": "신혼가구", "discount_pct": 0.2, "condition": "혼인 7년 이내"},
+    {"name": "다자녀3", "discount_pct": 0.7, "condition": "3자녀 이상"},
+    {"name": "다자녀", "discount_pct": 0.5, "condition": "2자녀"},
+    {"name": "1자녀", "discount_pct": 0.3, "condition": "1자녀"},
+    {"name": "한부모", "discount_pct": 0.5, "condition": "한부모가족"},
+    {"name": "생애최초", "discount_pct": 0.2, "condition": "생애최초 주택구입"},
+    {"name": "청약저축", "discount_pct": 0.3, "condition": "청약저축 가입기간 5년 이상 (10년 이상 0.4%p, 15년 이상 0.5%p)"},
+    {"name": "다문화", "discount_pct": 0.2, "condition": "다문화가구"},
+    {"name": "장애인", "discount_pct": 0.2, "condition": "장애인가구"}
+  ],
+  "max_total_discount": 1.0,
+
+  "available_terms_years": [10, 15, 20, 30],
+  "available_repayment_methods": [
+    "equal_principal_and_interest",
+    "equal_principal",
+    "graduated"
+  ],
+
+  "_data_source": "한국주택금융공사(HF) 2026.03 기준",
+  "_last_updated": "2026-03-01"
+}
