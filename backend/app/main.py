@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router
+from app.api.admin_routes import admin_router
 from app.config import settings
 
 logging.basicConfig(
@@ -65,6 +66,7 @@ async def log_requests(request: Request, call_next):
 
 
 app.include_router(router, prefix="/api")
+app.include_router(admin_router, prefix="/api/admin")
 
 
 @app.get("/health")

@@ -958,82 +958,6 @@ html, body {
   line-height: 1.6;
 }
 
-/* FAQ Accordion */
-.faq-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.faq-item {
-  background: var(--bg-card);
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-}
-
-.faq-q {
-  width: 100%;
-  background: transparent;
-  border: none;
-  padding: 16px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.faq-q-text {
-  font-family: 'Noto Sans KR', sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text1);
-  line-height: 1.5;
-}
-
-.faq-chevron {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.25s ease;
-  color: var(--text3);
-}
-
-.faq-item.open .faq-chevron {
-  transform: rotate(180deg);
-}
-
-.faq-a {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.32s ease, padding 0.2s ease;
-  padding: 0 20px;
-}
-
-.faq-item.open .faq-a {
-  max-height: 700px;
-  padding: 0 20px 18px;
-}
-
-.faq-a-text {
-  font-size: 13px;
-  color: var(--text2);
-  line-height: 1.8;
-  font-weight: 400;
-  border-top: 1px solid var(--border);
-  padding-top: 14px;
-}
-
-.faq-a-text strong {
-  color: var(--text1);
-  font-weight: 600;
-}
-
 /* Notice List */
 .notice-list {
   padding: 0 4px;
@@ -1097,28 +1021,6 @@ html, body {
 
 .disclaimer-section p:last-child {
   margin-bottom: 0;
-}
-
-/* Old Disclaimer component */
-.disclaimer {
-  background: var(--bg-muted);
-  border-radius: var(--radius);
-  padding: 18px 20px;
-  font-size: 12px;
-  color: var(--text3);
-  line-height: 1.7;
-}
-
-.disclaimer p {
-  margin-bottom: 4px;
-}
-
-.disclaimer p:last-child {
-  margin-bottom: 0;
-}
-
-.disclaimer strong {
-  color: var(--text2);
 }
 
 /* ─── Combination Cards ─── */
@@ -1261,55 +1163,3 @@ html, body {
   font-style: italic;
 }
 
-/* ─── Old comparison table ─── */
-.comparison-table-wrapper {
-  overflow-x: auto;
-  margin: 8px 0;
-}
-
-.comparison-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.comparison-table th {
-  background: var(--bg-muted);
-  font-weight: 600;
-  color: var(--text2);
-  padding: 10px 8px;
-  text-align: left;
-  border-bottom: 2px solid var(--border);
-}
-
-.comparison-table td {
-  padding: 10px 8px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text1);
-}
-
-.comparison-table .rank-cell {
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.comparison-table .warning {
-  color: var(--red);
-  font-weight: 600;
-}
-
-/* ─── Result page (old structure) ─── */
-.result-page {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.result-header {
-  text-align: center;
-}
-
-.result-header h2 {
-  font-size: 20px;
-  font-weight: 700;
-}

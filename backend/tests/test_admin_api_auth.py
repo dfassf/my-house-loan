@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.api.admin_routes import admin_router
 from app.api.routes import router
 from app.cache import cache
 from app.config import settings
@@ -35,6 +36,7 @@ def reset_in_memory_cache():
 def _client() -> TestClient:
     app = FastAPI()
     app.include_router(router, prefix="/api")
+    app.include_router(admin_router, prefix="/api/admin")
     return TestClient(app)
 
 
