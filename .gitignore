@@ -27,3 +27,4 @@ __pycache__/
 
 # uv
 uv.lock
+*.zip
