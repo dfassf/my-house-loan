@@ -1,10 +1,9 @@
-"""대출 상품 룰 데이터 로딩 (DB 캐시 → JSON 폴백 3단계)."""
+"""대출 상품 룰 데이터 로딩 (인메모리 캐시 → JSON 폴백)."""
 
 from __future__ import annotations
 
 import json
 import logging
-from copy import deepcopy
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -94,77 +93,22 @@ def _load_json(filename: str) -> dict:
         return json.load(f)
 
 
-# ── DB 캐시 조회 ────────────────────────────────────────────
+def load_base_product_data(product_id: str) -> dict:
+    """상품의 JSON 기본 데이터를 반환. admin 수동 수정 시 사용."""
+    return _load_json(f"{product_id}.json")
 
 
-def _try_load_from_db(product_id: str) -> dict[str, Any] | None:
-    """DB에서 최신 전체 상품 데이터 조회. DB 연결이 없거나 실패하면 None."""
-    try:
-        from app.db import engine
-
-        if engine is None:
-            return None
-
-        from sqlalchemy import select
-        from sqlalchemy.orm import Session
-
-        from app.fetchers.models import PolicyProductCache
-
-        with Session(engine) as session:
-            stmt = (
-                select(PolicyProductCache.product_data)
-                .where(PolicyProductCache.product_id == product_id)
-                .limit(1)
-            )
-            row = session.execute(stmt).scalar_one_or_none()
-            if row is not None:
-                return row  # type: ignore[return-value]
-    except Exception:
-        logger.debug("[product_loader] DB 캐시 조회 실패 (product=%s)", product_id, exc_info=True)
-
-    return None
-
-
-def _try_load_bank_avg_from_db() -> float | None:
-    """DB에서 최신 ECOS 은행 평균금리 조회."""
-    try:
-        from app.db import engine
-
-        if engine is None:
-            return None
-
-        from sqlalchemy import select
-        from sqlalchemy.orm import Session
-
-        from app.fetchers.models import BankAvgRateCache
-
-        with Session(engine) as session:
-            stmt = (
-                select(BankAvgRateCache.rate_value)
-                .order_by(BankAvgRateCache.stat_month.desc())
-                .limit(1)
-            )
-            row = session.execute(stmt).scalar_one_or_none()
-            if row is not None:
-                return float(row)
-    except Exception:
-        logger.debug("[product_loader] DB 은행 평균금리 조회 실패", exc_info=True)
-
-    return None
-
-
-# ── 3단계 로딩: DB 캐시 → JSON 폴백 ────────────────────────
+# ── 2단계 로딩: 인메모리 캐시 → JSON 폴백 ────────────────────
 
 
 _cache: dict[str, dict] = {}
 
 
 def _load_policy_product(product_id: str, json_filename: str) -> PolicyLoanData:
-    """정책대출 상품 데이터 로딩 (3단계 폴백).
+    """정책대출 상품 데이터 로딩 (2단계 폴백).
 
-    1. DB에 전체 상품 데이터가 있으면 → JSON 기본값 위에 DB 데이터를 병합
-       (DB에 있는 필드만 오버라이드, 없는 필드는 JSON 유지)
-    2. DB가 없으면 → JSON 파일 그대로 사용
+    1. 인메모리 캐시에 데이터가 있으면 → JSON 기본값 위에 캐시 데이터를 병합
+    2. 캐시가 없으면 → JSON 파일 그대로 사용
     """
     cache_key = product_id
     if cache_key in _cache:
@@ -173,17 +117,19 @@ def _load_policy_product(product_id: str, json_filename: str) -> PolicyLoanData:
     # JSON 기본 데이터 (전체 구조의 기본값)
     base_data = _load_json(json_filename)
 
-    # DB 캐시에서 병합 시도
-    db_data = _try_load_from_db(product_id)
-    if db_data is not None:
+    # 인메모리 캐시에서 병합 시도
+    from app.cache import cache as mem_cache
+
+    cached_data = mem_cache.get_product_data(product_id)
+    if cached_data is not None:
         merged_count = 0
-        for key, value in db_data.items():
+        for key, value in cached_data.items():
             if key.startswith("_"):
                 continue  # 메타 필드 스킵
             if value is not None:
                 base_data[key] = value
                 merged_count += 1
-        logger.info("[%s] DB 캐시 적용 (%d개 필드 병합)", product_id, merged_count)
+        logger.info("[%s] 인메모리 캐시 적용 (%d개 필드 병합)", product_id, merged_count)
 
     _cache[cache_key] = base_data
     return base_data  # type: ignore[return-value]
@@ -207,11 +153,13 @@ def load_bank_average() -> BankAverageData:
     if "bank_average" not in _cache:
         base_data = _load_json("bank_average.json")
 
-        # DB에서 최신 은행 평균금리가 있으면 variable 금리 오버라이드
-        db_avg = _try_load_bank_avg_from_db()
-        if db_avg is not None:
-            base_data["base_rates"]["variable"] = db_avg
-            logger.info("[bank_average] DB 평균금리 적용: %.2f%%", db_avg)
+        # 인메모리 캐시에서 최신 은행 평균금리가 있으면 variable 금리 오버라이드
+        from app.cache import cache as mem_cache
+
+        cached_avg = mem_cache.get_latest_avg_rate()
+        if cached_avg is not None:
+            base_data["base_rates"]["variable"] = cached_avg
+            logger.info("[bank_average] 인메모리 평균금리 적용: %.2f%%", cached_avg)
 
         _cache["bank_average"] = base_data
 
