@@ -7,8 +7,8 @@ ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 class Settings(BaseSettings):
     gemini_api_key: str = ""
+    admin_api_key: str = ""
     behind_proxy: bool = False
-    database_url: str = ""
     llm_max_retries: int = 2
     llm_retry_delays: str = "1,2"
     llm_max_inflight: int = 24

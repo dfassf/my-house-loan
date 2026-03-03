@@ -1,7 +1,7 @@
 """금리 + 자격요건 데이터 수집 스케줄러.
 
 FastAPI lifespan에서 백그라운드로 동작.
-각 소스별 TTL 기반 갱신 + DB 캐싱 + 변경 감지 알림.
+각 소스별 TTL 기반 갱신 + 인메모리 캐싱 + 변경 감지 알림.
 """
 
 from __future__ import annotations
@@ -9,13 +9,9 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-
-from app.config import settings
-from app.fetchers.base import FetchResult
+from app.cache import HfNewsEntry, PolicyProductEntry, cache
 from app.fetchers.data_go_kr import BogeumjariFetcher, DidimdolFetcher
 from app.fetchers.ecos import EcosFetcher
 from app.fetchers.finlife import FinlifeFetcher
@@ -24,16 +20,7 @@ from app.fetchers.hf_scraper import (
     HfDidimdolScraper,
     HfNewsScraper,
 )
-from app.fetchers.models import (
-    BankAvgRateCache,
-    BankRateCache,
-    HfNewsWatch,
-    PolicyProductCache,
-    RateFetchLog,
-)
-
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+from app.rules.product_loader import clear_cache as clear_product_cache
 
 logger = logging.getLogger(__name__)
 
@@ -57,42 +44,22 @@ def _is_cache_expired(last_fetched: datetime | None, ttl_hours: int) -> bool:
     return (now - last_fetched) > timedelta(hours=ttl_hours)
 
 
-def _get_last_fetch_time(session: Session, source: str) -> datetime | None:
-    stmt = (
-        select(RateFetchLog.fetched_at)
-        .where(RateFetchLog.source == source, RateFetchLog.status == "success")
-        .order_by(RateFetchLog.fetched_at.desc())
-        .limit(1)
-    )
-    return session.execute(stmt).scalar_one_or_none()
-
-
-def _log_fetch(session: Session, source: str, status: str, message: str = "") -> None:
-    session.add(RateFetchLog(source=source, status=status, message=message))
-    session.commit()
-
-
 # ── 정책대출 수집 (금리 + 자격요건) ─────────────────────────
 
 
 async def _fetch_and_cache_policy(
-    session: Session,
     fetcher_api: DidimdolFetcher | BogeumjariFetcher,
     fetcher_hf: HfDidimdolScraper | HfBogeumjariScraper,
     product_id: str,
 ) -> None:
-    """정책대출 데이터 수집 → DB 캐싱.
+    """정책대출 데이터 수집 → 인메모리 캐싱.
 
     1순위 금리: data.go.kr API
     2순위 금리 + 자격요건: HF 홈페이지 크롤링
     """
     now = datetime.now(timezone.utc)
 
-    # 기존 캐시 로딩
-    existing = session.execute(
-        select(PolicyProductCache).where(PolicyProductCache.product_id == product_id)
-    ).scalar_one_or_none()
-
+    existing = cache.policy_products.get(product_id)
     product_data: dict[str, Any] = existing.product_data.copy() if existing else {}
     source_parts: list[str] = []
     rate_updated = False
@@ -129,10 +96,9 @@ async def _fetch_and_cache_policy(
             eligibility_updated = True
 
     if not source_parts:
-        _log_fetch(session, f"policy_{product_id}", "fail", "금리+자격요건 모두 수집 실패")
+        cache.log_fetch(f"policy_{product_id}", "fail", "금리+자격요건 모두 수집 실패")
         return
 
-    # DB 저장
     source_str = "+".join(source_parts)
     if existing:
         existing.product_data = product_data
@@ -143,16 +109,16 @@ async def _fetch_and_cache_policy(
         if eligibility_updated:
             existing.eligibility_updated_at = now
     else:
-        session.add(PolicyProductCache(
+        cache.policy_products[product_id] = PolicyProductEntry(
             product_id=product_id,
             product_data=product_data,
             source=source_str,
             rate_updated_at=now if rate_updated else None,
             eligibility_updated_at=now if eligibility_updated else None,
-        ))
+        )
 
-    session.commit()
-    _log_fetch(session, f"policy_{product_id}", "success", source_str)
+    cache.log_fetch(f"policy_{product_id}", "success", source_str)
+    clear_product_cache()
     logger.info("[%s] 상품 캐시 갱신 완료 (source=%s)", product_id, source_str)
 
 
@@ -188,82 +154,63 @@ def _merge_eligibility(product_data: dict, elig_info: dict) -> None:
 # ── 은행 금리 수집 ──────────────────────────────────────────
 
 
-async def _fetch_and_cache_bank_rates(session: Session) -> None:
+async def _fetch_and_cache_bank_rates() -> None:
     fetcher = FinlifeFetcher()
     result = await fetcher.fetch()
 
     if not result.success:
-        _log_fetch(session, fetcher.source_name, "fail", result.error)
+        cache.log_fetch(fetcher.source_name, "fail", result.error)
         return
 
     products = result.data.get("products", [])
     dcls_month = result.data.get("dcls_month", "")
 
+    new_rates: list[dict[str, Any]] = []
     for prod in products:
-        stmt = pg_insert(BankRateCache).values(
-            dcls_month=dcls_month,
-            fin_co_nm=prod.get("fin_co_nm", ""),
-            fin_prdt_nm=prod.get("fin_prdt_nm", ""),
-            mrtg_type=prod.get("mrtg_type", ""),
-            rpay_type=prod.get("rpay_type", ""),
-            lend_rate_type=prod.get("lend_rate_type", ""),
-            rate_min=prod.get("rate_min"),
-            rate_max=prod.get("rate_max"),
-            rate_avg=prod.get("rate_avg"),
-        )
-        stmt = stmt.on_conflict_do_update(
-            constraint="uq_bank_rate",
-            set_={
-                "rate_min": stmt.excluded.rate_min,
-                "rate_max": stmt.excluded.rate_max,
-                "rate_avg": stmt.excluded.rate_avg,
-                "fetched_at": datetime.now(timezone.utc),
-            },
-        )
-        session.execute(stmt)
+        new_rates.append({
+            "dcls_month": dcls_month,
+            "fin_co_nm": prod.get("fin_co_nm", ""),
+            "fin_prdt_nm": prod.get("fin_prdt_nm", ""),
+            "mrtg_type": prod.get("mrtg_type", ""),
+            "rpay_type": prod.get("rpay_type", ""),
+            "lend_rate_type": prod.get("lend_rate_type", ""),
+            "rate_min": prod.get("rate_min"),
+            "rate_max": prod.get("rate_max"),
+            "rate_avg": prod.get("rate_avg"),
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+        })
 
-    session.commit()
-    _log_fetch(session, fetcher.source_name, "success", f"{len(products)} products, month={dcls_month}")
+    cache.bank_rates = new_rates
+    cache.log_fetch(fetcher.source_name, "success", f"{len(products)} products, month={dcls_month}")
     logger.info("[finlife] 은행 금리 캐시 갱신 완료 (%d 상품)", len(products))
 
 
-async def _fetch_and_cache_ecos(session: Session) -> None:
+async def _fetch_and_cache_ecos() -> None:
     fetcher = EcosFetcher()
     result = await fetcher.fetch()
 
     if not result.success:
-        _log_fetch(session, fetcher.source_name, "fail", result.error)
+        cache.log_fetch(fetcher.source_name, "fail", result.error)
         return
 
     for entry in result.data.get("monthly_rates", []):
-        stmt = pg_insert(BankAvgRateCache).values(
-            stat_month=entry["stat_month"],
-            rate_value=entry["rate_value"],
-        )
-        stmt = stmt.on_conflict_do_update(
-            constraint="uq_bank_avg_month",
-            set_={
-                "rate_value": stmt.excluded.rate_value,
-                "fetched_at": datetime.now(timezone.utc),
-            },
-        )
-        session.execute(stmt)
+        cache.bank_avg_rates[entry["stat_month"]] = float(entry["rate_value"])
 
-    session.commit()
-    _log_fetch(session, fetcher.source_name, "success")
+    cache.log_fetch(fetcher.source_name, "success")
+    clear_product_cache()
     logger.info("[ecos] 평균금리 캐시 갱신 완료")
 
 
 # ── HF 보도자료 모니터링 ────────────────────────────────────
 
 
-async def _monitor_hf_news(session: Session) -> list[dict]:
+async def _monitor_hf_news() -> list[dict]:
     """HF 보도자료 크롤링 → 새 기사 중 관련 기사 감지."""
     fetcher = HfNewsScraper()
     result = await fetcher.fetch()
 
     if not result.success:
-        _log_fetch(session, fetcher.source_name, "fail", result.error)
+        cache.log_fetch(fetcher.source_name, "fail", result.error)
         return []
 
     articles = result.data.get("articles", [])
@@ -272,21 +219,15 @@ async def _monitor_hf_news(session: Session) -> list[dict]:
     for article in articles:
         article_id = article["article_id"]
 
-        # 이미 기록된 기사인지 확인
-        exists = session.execute(
-            select(HfNewsWatch.id).where(HfNewsWatch.article_id == article_id)
-        ).scalar_one_or_none()
-
-        if exists is not None:
+        if article_id in cache.hf_news:
             continue
 
-        # 새 기사 기록
-        session.add(HfNewsWatch(
+        cache.hf_news[article_id] = HfNewsEntry(
             article_id=article_id,
             title=article["title"],
             is_relevant=article["is_relevant"],
             keywords_matched=",".join(article.get("keywords_matched", [])),
-        ))
+        )
 
         if article["is_relevant"]:
             new_alerts.append(article)
@@ -296,15 +237,13 @@ async def _monitor_hf_news(session: Session) -> list[dict]:
                 article.get("keywords_matched"),
             )
 
-    session.commit()
-
     if new_alerts:
-        _log_fetch(
-            session, "hf_news", "alert",
+        cache.log_fetch(
+            "hf_news", "alert",
             f"{len(new_alerts)}건 관련 기사 감지: {[a['title'] for a in new_alerts]}"
         )
     else:
-        _log_fetch(session, "hf_news", "success", f"{len(articles)}건 확인, 새 알림 없음")
+        cache.log_fetch("hf_news", "success", f"{len(articles)}건 확인, 새 알림 없음")
 
     return new_alerts
 
@@ -312,13 +251,13 @@ async def _monitor_hf_news(session: Session) -> list[dict]:
 # ── 통합 실행 ───────────────────────────────────────────────
 
 
-async def run_all_fetchers(session: Session) -> dict[str, Any]:
+async def run_all_fetchers() -> dict[str, Any]:
     """모든 소스에서 수집 실행. 수동 갱신 엔드포인트용."""
     results: dict[str, Any] = {}
 
     try:
         await _fetch_and_cache_policy(
-            session, DidimdolFetcher(), HfDidimdolScraper(), "didimdol",
+            DidimdolFetcher(), HfDidimdolScraper(), "didimdol",
         )
         results["didimdol"] = "success"
     except Exception as e:
@@ -327,7 +266,7 @@ async def run_all_fetchers(session: Session) -> dict[str, Any]:
 
     try:
         await _fetch_and_cache_policy(
-            session, BogeumjariFetcher(), HfBogeumjariScraper(), "bogeumjari",
+            BogeumjariFetcher(), HfBogeumjariScraper(), "bogeumjari",
         )
         results["bogeumjari"] = "success"
     except Exception as e:
@@ -335,21 +274,21 @@ async def run_all_fetchers(session: Session) -> dict[str, Any]:
         logger.exception("[bogeumjari] 수집 실패")
 
     try:
-        await _fetch_and_cache_bank_rates(session)
+        await _fetch_and_cache_bank_rates()
         results["finlife"] = "success"
     except Exception as e:
         results["finlife"] = f"error: {e}"
         logger.exception("[finlife] 수집 실패")
 
     try:
-        await _fetch_and_cache_ecos(session)
+        await _fetch_and_cache_ecos()
         results["ecos"] = "success"
     except Exception as e:
         results["ecos"] = f"error: {e}"
         logger.exception("[ecos] 수집 실패")
 
     try:
-        alerts = await _monitor_hf_news(session)
+        alerts = await _monitor_hf_news()
         results["hf_news"] = {
             "status": "alert" if alerts else "success",
             "new_alerts": len(alerts),
@@ -364,17 +303,9 @@ async def run_all_fetchers(session: Session) -> dict[str, Any]:
 
 async def rate_update_loop() -> None:
     """백그라운드 금리+자격요건 갱신 루프."""
-    from app.db import engine, SessionLocal
-
-    if engine is None:
-        logger.info("[scheduler] database_url 미설정 → 스케줄러 비활성화")
-        return
-
-    # 서버 시작 시 즉시 1회 전체 수집
     logger.info("[scheduler] 초기 데이터 수집 시작")
     try:
-        with SessionLocal() as session:
-            await run_all_fetchers(session)
+        await run_all_fetchers()
     except Exception:
         logger.exception("[scheduler] 초기 수집 실패")
 
@@ -382,35 +313,34 @@ async def rate_update_loop() -> None:
         await asyncio.sleep(_CHECK_INTERVAL_SECONDS)
 
         try:
-            with SessionLocal() as session:
-                # 보금자리론: 24시간마다
-                last = _get_last_fetch_time(session, "policy_bogeumjari")
-                if _is_cache_expired(last, _TTL_BOGEUMJARI_HOURS):
-                    await _fetch_and_cache_policy(
-                        session, BogeumjariFetcher(), HfBogeumjariScraper(), "bogeumjari",
-                    )
+            # 보금자리론: 24시간마다
+            last = cache.get_last_fetch_time("policy_bogeumjari")
+            if _is_cache_expired(last, _TTL_BOGEUMJARI_HOURS):
+                await _fetch_and_cache_policy(
+                    BogeumjariFetcher(), HfBogeumjariScraper(), "bogeumjari",
+                )
 
-                # 디딤돌: 12시간마다
-                last = _get_last_fetch_time(session, "policy_didimdol")
-                if _is_cache_expired(last, _TTL_DIDIMDOL_HOURS):
-                    await _fetch_and_cache_policy(
-                        session, DidimdolFetcher(), HfDidimdolScraper(), "didimdol",
-                    )
+            # 디딤돌: 12시간마다
+            last = cache.get_last_fetch_time("policy_didimdol")
+            if _is_cache_expired(last, _TTL_DIDIMDOL_HOURS):
+                await _fetch_and_cache_policy(
+                    DidimdolFetcher(), HfDidimdolScraper(), "didimdol",
+                )
 
-                # finlife 은행금리: 24시간마다
-                last = _get_last_fetch_time(session, "finlife")
-                if _is_cache_expired(last, _TTL_FINLIFE_HOURS):
-                    await _fetch_and_cache_bank_rates(session)
+            # finlife 은행금리: 24시간마다
+            last = cache.get_last_fetch_time("finlife")
+            if _is_cache_expired(last, _TTL_FINLIFE_HOURS):
+                await _fetch_and_cache_bank_rates()
 
-                # ECOS 평균금리: 48시간마다
-                last = _get_last_fetch_time(session, "ecos")
-                if _is_cache_expired(last, _TTL_ECOS_HOURS):
-                    await _fetch_and_cache_ecos(session)
+            # ECOS 평균금리: 48시간마다
+            last = cache.get_last_fetch_time("ecos")
+            if _is_cache_expired(last, _TTL_ECOS_HOURS):
+                await _fetch_and_cache_ecos()
 
-                # HF 보도자료: 6시간마다
-                last = _get_last_fetch_time(session, "hf_news")
-                if _is_cache_expired(last, _TTL_NEWS_HOURS):
-                    await _monitor_hf_news(session)
+            # HF 보도자료: 6시간마다
+            last = cache.get_last_fetch_time("hf_news")
+            if _is_cache_expired(last, _TTL_NEWS_HOURS):
+                await _monitor_hf_news()
 
         except Exception:
             logger.exception("[scheduler] 갱신 루프 에러")
