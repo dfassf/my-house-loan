@@ -11,20 +11,18 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from app.cache import HfNewsEntry, PolicyProductEntry, cache
+from app.cache import PolicyProductEntry, cache
 from app.fetchers.data_go_kr import BogeumjariFetcher, DidimdolFetcher
 from app.fetchers.ecos import EcosFetcher
 from app.fetchers.finlife import FinlifeFetcher
 from app.fetchers.hf_scraper import (
     HfBogeumjariScraper,
     HfDidimdolScraper,
-    HfNewsScraper,
 )
+from app.fetchers.scheduler_news import monitor_hf_news
 from app.rules.product_loader import clear_cache as clear_product_cache
 
 logger = logging.getLogger(__name__)
-
-KST = timezone(timedelta(hours=9))
 
 # TTL 설정 (시간 단위)
 _TTL_BOGEUMJARI_HOURS = 24
@@ -201,53 +199,6 @@ async def _fetch_and_cache_ecos() -> None:
     logger.info("[ecos] 평균금리 캐시 갱신 완료")
 
 
-# ── HF 보도자료 모니터링 ────────────────────────────────────
-
-
-async def _monitor_hf_news() -> list[dict]:
-    """HF 보도자료 크롤링 → 새 기사 중 관련 기사 감지."""
-    fetcher = HfNewsScraper()
-    result = await fetcher.fetch()
-
-    if not result.success:
-        cache.log_fetch(fetcher.source_name, "fail", result.error)
-        return []
-
-    articles = result.data.get("articles", [])
-    new_alerts: list[dict] = []
-
-    for article in articles:
-        article_id = article["article_id"]
-
-        if article_id in cache.hf_news:
-            continue
-
-        cache.hf_news[article_id] = HfNewsEntry(
-            article_id=article_id,
-            title=article["title"],
-            is_relevant=article["is_relevant"],
-            keywords_matched=",".join(article.get("keywords_matched", [])),
-        )
-
-        if article["is_relevant"]:
-            new_alerts.append(article)
-            logger.warning(
-                "[HF 보도자료 알림] 정책 변경 가능성: '%s' (키워드: %s)",
-                article["title"],
-                article.get("keywords_matched"),
-            )
-
-    if new_alerts:
-        cache.log_fetch(
-            "hf_news", "alert",
-            f"{len(new_alerts)}건 관련 기사 감지: {[a['title'] for a in new_alerts]}"
-        )
-    else:
-        cache.log_fetch("hf_news", "success", f"{len(articles)}건 확인, 새 알림 없음")
-
-    return new_alerts
-
-
 # ── 통합 실행 ───────────────────────────────────────────────
 
 
@@ -255,40 +206,29 @@ async def run_all_fetchers() -> dict[str, Any]:
     """모든 소스에서 수집 실행. 수동 갱신 엔드포인트용."""
     results: dict[str, Any] = {}
 
-    try:
-        await _fetch_and_cache_policy(
-            DidimdolFetcher(), HfDidimdolScraper(), "didimdol",
-        )
-        results["didimdol"] = "success"
-    except Exception as e:
-        results["didimdol"] = f"error: {e}"
-        logger.exception("[didimdol] 수집 실패")
+    async def _run_step(key: str, label: str, task: Any) -> None:
+        try:
+            await task
+            results[key] = "success"
+        except Exception as e:
+            results[key] = f"error: {e}"
+            logger.exception("[%s] 수집 실패", label)
+
+    await _run_step(
+        "didimdol",
+        "didimdol",
+        _fetch_and_cache_policy(DidimdolFetcher(), HfDidimdolScraper(), "didimdol"),
+    )
+    await _run_step(
+        "bogeumjari",
+        "bogeumjari",
+        _fetch_and_cache_policy(BogeumjariFetcher(), HfBogeumjariScraper(), "bogeumjari"),
+    )
+    await _run_step("finlife", "finlife", _fetch_and_cache_bank_rates())
+    await _run_step("ecos", "ecos", _fetch_and_cache_ecos())
 
     try:
-        await _fetch_and_cache_policy(
-            BogeumjariFetcher(), HfBogeumjariScraper(), "bogeumjari",
-        )
-        results["bogeumjari"] = "success"
-    except Exception as e:
-        results["bogeumjari"] = f"error: {e}"
-        logger.exception("[bogeumjari] 수집 실패")
-
-    try:
-        await _fetch_and_cache_bank_rates()
-        results["finlife"] = "success"
-    except Exception as e:
-        results["finlife"] = f"error: {e}"
-        logger.exception("[finlife] 수집 실패")
-
-    try:
-        await _fetch_and_cache_ecos()
-        results["ecos"] = "success"
-    except Exception as e:
-        results["ecos"] = f"error: {e}"
-        logger.exception("[ecos] 수집 실패")
-
-    try:
-        alerts = await _monitor_hf_news()
+        alerts = await monitor_hf_news(logger)
         results["hf_news"] = {
             "status": "alert" if alerts else "success",
             "new_alerts": len(alerts),
@@ -340,7 +280,7 @@ async def rate_update_loop() -> None:
             # HF 보도자료: 6시간마다
             last = cache.get_last_fetch_time("hf_news")
             if _is_cache_expired(last, _TTL_NEWS_HOURS):
-                await _monitor_hf_news()
+                await monitor_hf_news(logger)
 
         except Exception:
             logger.exception("[scheduler] 갱신 루프 에러")
