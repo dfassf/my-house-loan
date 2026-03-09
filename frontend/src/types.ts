@@ -40,6 +40,7 @@ export interface LoanSimulationInput {
 // ─── 결과 타입 ───
 
 export interface LoanProductResult {
+  product_id: string
   product_name: string
   product_type: 'policy' | 'bank'
   loan_amount: number

@@ -155,6 +155,7 @@ def _build_policy_product(
     )
 
     return LoanProductResult(
+        product_id=option.product_id,
         product_name=option.product_name,
         product_type="policy",
         loan_amount=amount,
@@ -182,6 +183,7 @@ def _build_bank_product(
     )
 
     return LoanProductResult(
+        product_id="bank",
         product_name="시중은행 주택담보대출 (추정)",
         product_type="bank",
         loan_amount=amount,

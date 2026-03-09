@@ -1,5 +1,7 @@
 import type { LoanSimulationInput, RepaymentMethod } from '../types'
 import { REPAYMENT_LABELS } from '../types'
+import AmountInput from './AmountInput'
+import type { AmountChip } from './AmountInput'
 
 interface Props {
   data: LoanSimulationInput
@@ -9,26 +11,9 @@ interface Props {
   loading: boolean
 }
 
-function formatWon(value: number): string {
-  if (value >= 10_000) {
-    return `${(value / 10_000).toLocaleString()}만원`
-  }
-  return value === 0 ? '0원' : `${value.toLocaleString()}원`
-}
-
-function manToWon(manStr: string): number {
-  const n = parseFloat(manStr)
-  return isNaN(n) ? 0 : Math.round(n * 10_000)
-}
-
-function wonToMan(won: number): string {
-  const man = won / 10_000
-  return man === 0 ? '' : String(man)
-}
-
 const CREDIT_PRESETS = [700, 800, 900]
 
-const DEBT_CHIPS = [
+const DEBT_CHIPS: AmountChip[] = [
   { label: '+50만', amount: 500_000 },
   { label: '+10만', amount: 100_000 },
   { label: '+5만', amount: 50_000 },
@@ -71,36 +56,11 @@ export default function InputStep3({ data, onChange, onSubmit, onBack, loading }
       </div>
 
       <label className="field-label">기존 월상환액</label>
-      <div className="amount-input-group">
-        <div className="amount-input-row">
-          <input
-            type="number"
-            className="amount-input"
-            placeholder="0"
-            value={wonToMan(data.existing_debt_monthly)}
-            onChange={e => onChange({ existing_debt_monthly: manToWon(e.target.value) })}
-          />
-          <span className="amount-input-suffix">만원</span>
-        </div>
-        <div className="amount-display">{formatWon(data.existing_debt_monthly)}</div>
-        <div className="amount-chips">
-          {DEBT_CHIPS.map(chip => (
-            <button
-              key={chip.label}
-              className="amount-chip"
-              onClick={() => onChange({ existing_debt_monthly: Math.max(0, data.existing_debt_monthly + chip.amount) })}
-            >
-              {chip.label}
-            </button>
-          ))}
-          <button
-            className="amount-chip amount-chip-reset"
-            onClick={() => onChange({ existing_debt_monthly: 0 })}
-          >
-            초기화
-          </button>
-        </div>
-      </div>
+      <AmountInput
+        value={data.existing_debt_monthly}
+        onChange={v => onChange({ existing_debt_monthly: v })}
+        chips={DEBT_CHIPS}
+      />
 
       <label className="field-label">상환 방식</label>
       <div className="radio-group">

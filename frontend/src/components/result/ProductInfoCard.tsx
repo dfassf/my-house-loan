@@ -3,10 +3,10 @@ import type { LoanProductResult } from '../../types'
 import { calcEqualPrincipalAndInterest, calcEqualPrincipal } from '../../calculator'
 import { formatLimit, formatWon } from '../../utils/format'
 
-type RepayMethod = 'annuity' | 'equal-principal'
+type CalcTab = 'equal_principal_and_interest' | 'equal_principal'
 
-function calcMonthly(principal: number, annualRatePct: number, method: RepayMethod, months: number = 360): number {
-  if (method === 'equal-principal') {
+function calcMonthly(principal: number, annualRatePct: number, method: CalcTab, months: number = 360): number {
+  if (method === 'equal_principal') {
     return calcEqualPrincipal(principal, annualRatePct, months).monthlyPayment
   }
   return calcEqualPrincipalAndInterest(principal, annualRatePct, months).monthlyPayment
@@ -18,7 +18,7 @@ interface Props {
 }
 
 export default function ProductInfoCard({ product, color }: Props) {
-  const [method, setMethod] = useState<RepayMethod>('annuity')
+  const [method, setMethod] = useState<CalcTab>('equal_principal_and_interest')
   const months = product.loan_term_years * 12
   const monthly = calcMonthly(product.loan_amount, product.annual_rate_pct, method, months)
 
@@ -53,12 +53,12 @@ export default function ProductInfoCard({ product, color }: Props) {
           <div className="monthly-calc" style={{ marginTop: 16, borderTop: 'none', paddingTop: 0 }}>
             <div className="monthly-calc-tabs">
               <button
-                className={`mc-tab${method === 'annuity' ? (color === 'green' ? ' active-green' : ' active') : ''}`}
-                onClick={() => setMethod('annuity')}
+                className={`mc-tab${method === 'equal_principal_and_interest' ? (color === 'green' ? ' active-green' : ' active') : ''}`}
+                onClick={() => setMethod('equal_principal_and_interest')}
               >원리금균등</button>
               <button
-                className={`mc-tab${method === 'equal-principal' ? (color === 'green' ? ' active-green' : ' active') : ''}`}
-                onClick={() => setMethod('equal-principal')}
+                className={`mc-tab${method === 'equal_principal' ? (color === 'green' ? ' active-green' : ' active') : ''}`}
+                onClick={() => setMethod('equal_principal')}
               >원금균등</button>
             </div>
             <div className="monthly-amount-row">

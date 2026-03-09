@@ -1,5 +1,7 @@
 import type { LoanSimulationInput, LoanPurpose, HousingType, Region } from '../types'
 import { LOAN_PURPOSE_LABELS, HOUSING_TYPE_LABELS, REGION_LABELS } from '../types'
+import AmountInput from './AmountInput'
+import type { AmountChip } from './AmountInput'
 
 interface Props {
   data: LoanSimulationInput
@@ -7,88 +9,11 @@ interface Props {
   onNext: () => void
 }
 
-function formatWon(value: number): string {
-  if (value >= 100_000_000) {
-    const uk = Math.floor(value / 100_000_000)
-    const man = Math.floor((value % 100_000_000) / 10_000)
-    return man > 0 ? `${uk}억 ${man.toLocaleString()}만원` : `${uk}억원`
-  }
-  if (value >= 10_000) {
-    return `${(value / 10_000).toLocaleString()}만원`
-  }
-  return `${value.toLocaleString()}원`
-}
-
-/** 만원 단위 입력 → 원 단위 변환 */
-function manToWon(manStr: string): number {
-  const n = parseFloat(manStr)
-  return isNaN(n) ? 0 : Math.round(n * 10_000)
-}
-
-/** 원 단위 → 만원 단위 (표시용) */
-function wonToMan(won: number): string {
-  const man = won / 10_000
-  return man === 0 ? '' : String(man)
-}
-
-interface AmountChip {
-  label: string
-  amount: number
-}
-
 const AMOUNT_CHIPS: AmountChip[] = [
   { label: '+1억', amount: 100_000_000 },
   { label: '+1,000만', amount: 10_000_000 },
   { label: '+100만', amount: 1_000_000 },
 ]
-
-function AmountInput({
-  value,
-  onChange,
-  chips,
-  placeholder = '0',
-  warn,
-}: {
-  value: number
-  onChange: (v: number) => void
-  chips: AmountChip[]
-  placeholder?: string
-  warn?: string
-}) {
-  return (
-    <div className="amount-input-group">
-      <div className="amount-input-row">
-        <input
-          type="number"
-          className="amount-input"
-          placeholder={placeholder}
-          value={wonToMan(value)}
-          onChange={e => onChange(manToWon(e.target.value))}
-        />
-        <span className="amount-input-suffix">만원</span>
-      </div>
-      <div className="amount-display">{formatWon(value)}</div>
-      {warn && <div className="field-warn">{warn}</div>}
-      <div className="amount-chips">
-        {chips.map(chip => (
-          <button
-            key={chip.label}
-            className="amount-chip"
-            onClick={() => onChange(Math.max(0, value + chip.amount))}
-          >
-            {chip.label}
-          </button>
-        ))}
-        <button
-          className="amount-chip amount-chip-reset"
-          onClick={() => onChange(0)}
-        >
-          초기화
-        </button>
-      </div>
-    </div>
-  )
-}
 
 export default function InputStep1({ data, onChange, onNext }: Props) {
   const loanExceedsPrice = data.desired_amount > data.housing_price && data.housing_price > 0

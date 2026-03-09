@@ -26,12 +26,12 @@ export default function ResultPage({ result, onReset }: Props) {
     }
   }
 
-  const hasDidimdol = policyProducts.some(p => p.product_name.includes('디딤돌'))
-  const hasBogeumjari = policyProducts.some(p => p.product_name.includes('보금자리'))
+  const didimdolProduct = policyProducts.find(p => p.product_id === 'didimdol')
+  const bogeumjariProduct = policyProducts.find(p => p.product_id === 'bogeumjari')
+  const hasDidimdol = !!didimdolProduct
+  const hasBogeumjari = !!bogeumjariProduct
   const hasBothPolicy = hasDidimdol && hasBogeumjari
   const hasAnyPolicy = hasDidimdol || hasBogeumjari
-  const didimdolProduct = policyProducts.find(p => p.product_name.includes('디딤돌'))
-  const bogeumjariProduct = policyProducts.find(p => p.product_name.includes('보금자리'))
   const rejections = result.policy_rejections ?? []
 
   type ResultType = 'both' | 'didimdol_only' | 'bogeumjari_only' | 'bank_only'

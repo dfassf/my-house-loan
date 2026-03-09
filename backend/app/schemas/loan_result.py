@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class LoanProductResult(BaseModel):
     """개별 대출 상품 계산 결과."""
 
+    product_id: str = Field(default="", description="상품 식별자 (예: didimdol, bogeumjari, bank)")
     product_name: str = Field(description="상품명 (예: 디딤돌, 보금자리론)")
     product_type: str = Field(description="상품 유형 (policy / bank)")
     loan_amount: int = Field(ge=0, description="대출금액 (원)")
