@@ -10,7 +10,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemini-2.5-flash-lite"
+MODEL = "gemini-3.1-flash-lite"
 
 MAX_RETRIES = max(0, settings.llm_max_retries)
 MAX_INFLIGHT = max(1, settings.llm_max_inflight)
